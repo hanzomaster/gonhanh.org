@@ -109,6 +109,27 @@ class AppState: ObservableObject {
         }
     }
 
+    @Published var shortcutExpansionEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(shortcutExpansionEnabled, forKey: SettingsKey.shortcutExpansionEnabled)
+            syncShortcutExpansionToEngine()
+        }
+    }
+
+    @Published var shortcutExpansionInEnglish: Bool = true {
+        didSet {
+            UserDefaults.standard.set(shortcutExpansionInEnglish, forKey: SettingsKey.shortcutExpansionInEnglish)
+            syncShortcutExpansionToEngine()
+        }
+    }
+
+    @Published var shortcutExpansionInVietnamese: Bool = true {
+        didSet {
+            UserDefaults.standard.set(shortcutExpansionInVietnamese, forKey: SettingsKey.shortcutExpansionInVietnamese)
+            syncShortcutExpansionToEngine()
+        }
+    }
+
     @Published var modernTone: Bool = true {
         didSet {
             UserDefaults.standard.set(modernTone, forKey: SettingsKey.modernTone)
@@ -231,6 +252,9 @@ class AppState: ObservableObject {
         autoWShortcut = defaults.bool(forKey: SettingsKey.autoWShortcut)
         bracketShortcut = defaults.bool(forKey: SettingsKey.bracketShortcut)
         restoreShortcutEnabled = defaults.bool(forKey: SettingsKey.restoreShortcutEnabled)
+        shortcutExpansionEnabled = defaults.bool(forKey: SettingsKey.shortcutExpansionEnabled)
+        shortcutExpansionInEnglish = defaults.bool(forKey: SettingsKey.shortcutExpansionInEnglish)
+        shortcutExpansionInVietnamese = defaults.bool(forKey: SettingsKey.shortcutExpansionInVietnamese)
         modernTone = defaults.bool(forKey: SettingsKey.modernTone)
         englishAutoRestore = defaults.bool(forKey: SettingsKey.englishAutoRestore)
         autoCapitalize = defaults.bool(forKey: SettingsKey.autoCapitalize)
@@ -270,6 +294,7 @@ class AppState: ObservableObject {
         RustBridge.setSkipWShortcut(!autoWShortcut)
         RustBridge.setBracketShortcut(bracketShortcut)
         RustBridge.setRestoreShortcutEnabled(restoreShortcutEnabled)
+        syncShortcutExpansionToEngine()
         RustBridge.setModernTone(modernTone)
         RustBridge.setEnglishAutoRestore(englishAutoRestore)
         updateAutoCapitalizeEngine()
@@ -488,6 +513,14 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Shortcuts
+
+    func syncShortcutExpansionToEngine() {
+        RustBridge.setShortcutExpansion(
+            enabled: shortcutExpansionEnabled,
+            inEnglish: shortcutExpansionInEnglish,
+            inVietnamese: shortcutExpansionInVietnamese
+        )
+    }
 
     func syncShortcutsToEngine(_ validShortcuts: [ShortcutItem]? = nil) {
         let toSync = validShortcuts ?? shortcuts.filter { !$0.key.isEmpty && !$0.value.isEmpty }
@@ -980,6 +1013,14 @@ struct SettingsPageView: View {
 
             // Mở rộng
             VStack(spacing: 0) {
+                SettingsToggleRow("Bật bảng gõ tắt", subtitle: "Bật hoặc tắt toàn bộ từ viết tắt", isOn: $appState.shortcutExpansionEnabled)
+                Divider().padding(.leading, 12)
+                SettingsToggleRow("Dùng khi gõ tiếng Việt", indented: true, isOn: $appState.shortcutExpansionInVietnamese)
+                    .disabled(!appState.shortcutExpansionEnabled)
+                Divider().padding(.leading, 12)
+                SettingsToggleRow("Dùng khi gõ tiếng Anh", indented: true, isOn: $appState.shortcutExpansionInEnglish)
+                    .disabled(!appState.shortcutExpansionEnabled)
+                Divider().padding(.leading, 12)
                 shortcutsRow
                 Divider().padding(.leading, 12)
                 SettingsToggleRow("Nhớ trạng thái theo app", subtitle: "Tự bật/tắt khi chuyển ứng dụng", isOn: $appState.perAppModeEnabled)
@@ -1537,9 +1578,11 @@ struct ShortcutsRowView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Bảng gõ tắt").font(.system(size: 13))
-                Text(appState.shortcuts.isEmpty
-                    ? "Chưa có từ viết tắt"
-                    : "\(appState.shortcuts.filter(\.isEnabled).count)/\(appState.shortcuts.count) đang bật")
+                Text(!appState.shortcutExpansionEnabled
+                    ? "Đang tắt toàn bộ"
+                    : appState.shortcuts.isEmpty
+                        ? "Chưa có từ viết tắt"
+                        : "\(appState.shortcuts.filter(\.isEnabled).count)/\(appState.shortcuts.count) đang bật")
                     .font(.system(size: 11))
                     .foregroundColor(Color(NSColor.secondaryLabelColor))
             }

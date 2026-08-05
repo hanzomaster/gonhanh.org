@@ -72,6 +72,7 @@ class UpdateManager: NSObject, ObservableObject {
 
     /// Start background auto-update loop (call once at app launch)
     func startBackgroundUpdates() {
+        guard !AppMetadata.isCustomBuild else { return }
         // Check immediately on launch
         checkAndDownloadSilently()
         // Then every hour
@@ -82,6 +83,7 @@ class UpdateManager: NSObject, ObservableObject {
 
     /// User manually checks (only shows window if update available)
     func checkForUpdatesManually() {
+        guard !AppMetadata.isCustomBuild else { return }
         if case let .readyToInstall(dmgPath) = state {
             // Verify DMG still exists before restart
             if FileManager.default.fileExists(atPath: dmgPath.path) {
@@ -111,6 +113,7 @@ class UpdateManager: NSObject, ObservableObject {
 
     /// Download update (from popup CTA)
     func downloadUpdate(_ info: UpdateInfo) {
+        guard !AppMetadata.isCustomBuild else { return }
         state = .downloading(progress: 0)
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
         downloadTask = session.downloadTask(with: info.downloadURL)
@@ -119,6 +122,7 @@ class UpdateManager: NSObject, ObservableObject {
 
     /// Mount DMG, copy .app to /Applications, relaunch
     func restartToUpdate() {
+        guard !AppMetadata.isCustomBuild else { return }
         guard case let .readyToInstall(dmgPath) = state else { return }
 
         let appName = "GoNhanh"

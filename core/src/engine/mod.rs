@@ -256,6 +256,12 @@ pub struct Engine {
     enabled: bool,
     last_transform: Option<Transform>,
     shortcuts: ShortcutTable,
+    /// Master switch for user-defined text expansion.
+    shortcut_expansion_enabled: bool,
+    /// Allow text expansion while the Vietnamese engine is disabled (English mode).
+    shortcut_expansion_in_english: bool,
+    /// Allow text expansion while the Vietnamese engine is enabled.
+    shortcut_expansion_in_vietnamese: bool,
     /// Raw keystroke history for ESC restore (key, caps, shift)
     raw_input: Vec<(u16, bool, bool)>,
     /// True if current word has non-letter characters before letters
@@ -375,6 +381,9 @@ impl Engine {
             enabled: true,
             last_transform: None,
             shortcuts: ShortcutTable::with_defaults(),
+            shortcut_expansion_enabled: true,
+            shortcut_expansion_in_english: true,
+            shortcut_expansion_in_vietnamese: true,
             raw_input: Vec::with_capacity(64),
             has_non_letter_prefix: false,
             skip_w_shortcut: false,
@@ -413,12 +422,34 @@ impl Engine {
     }
 
     pub fn set_enabled(&mut self, enabled: bool) {
+        if self.enabled != enabled {
+            self.shortcut_prefix.clear();
+        }
         self.enabled = enabled;
         if !enabled {
             self.buf.clear();
             self.word_history.clear();
             self.spaces_after_commit = 0;
         }
+    }
+
+    /// Configure the master and per-mode text expansion switches.
+    pub fn set_shortcut_expansion(&mut self, enabled: bool, in_english: bool, in_vietnamese: bool) {
+        self.shortcut_expansion_enabled = enabled;
+        self.shortcut_expansion_in_english = in_english;
+        self.shortcut_expansion_in_vietnamese = in_vietnamese;
+        if !self.shortcut_expansion_allowed() {
+            self.shortcut_prefix.clear();
+        }
+    }
+
+    fn shortcut_expansion_allowed(&self) -> bool {
+        self.shortcut_expansion_enabled
+            && if self.enabled {
+                self.shortcut_expansion_in_vietnamese
+            } else {
+                self.shortcut_expansion_in_english
+            }
     }
 
     /// Set whether to skip w→ư shortcut in Telex mode
@@ -583,6 +614,11 @@ impl Engine {
             // Fall through to shortcut accumulation below
         }
 
+        if !self.shortcut_expansion_allowed() {
+            self.shortcut_prefix.clear();
+            return Result::none();
+        }
+
         // Accumulate character for suffix matching
         self.shortcut_prefix.push(ch);
 
@@ -644,6 +680,8 @@ impl Engine {
             return Result::none();
         }
 
+        let shortcut_expansion_allowed = self.shortcut_expansion_allowed();
+
         // When IME is disabled, process shortcuts but skip Vietnamese transforms
         // This allows both word shortcuts (btw → by the way) and symbol shortcuts (-> → →)
         if !self.enabled {
@@ -652,6 +690,11 @@ impl Engine {
             self.raw_input.clear();
             self.word_history.clear();
             self.spaces_after_commit = 0;
+
+            if !shortcut_expansion_allowed {
+                self.shortcut_prefix.clear();
+                return Result::none();
+            }
 
             // Word boundary keys (Space, Enter): check for word shortcuts
             if key == keys::SPACE || key == keys::RETURN || key == keys::ENTER {
@@ -842,7 +885,7 @@ impl Engine {
             // Also continue accumulating if we already started a prefix
             let continuing_prefix = self.buf.is_empty() && !self.shortcut_prefix.is_empty();
 
-            if at_true_start || continuing_prefix {
+            if shortcut_expansion_allowed && (at_true_start || continuing_prefix) {
                 // Track additional break chars for backspace-after-break restore
                 // When user types multiple break chars after a word (e.g., "duow;;"),
                 // each break char should count as one "space" for restore purposes.
@@ -959,8 +1002,10 @@ impl Engine {
             // Issue #130: After clearing buffer, store break char as potential shortcut prefix
             // This allows shortcuts like "->" to work after "abc->" (where "-" clears "abc")
             // Example: type "→abc->" should produce "→abc→"
-            if let Some(ch) = break_key_to_char(key, shift) {
-                self.shortcut_prefix.push(ch);
+            if shortcut_expansion_allowed {
+                if let Some(ch) = break_key_to_char(key, shift) {
+                    self.shortcut_prefix.push(ch);
+                }
             }
 
             return restore_result;
@@ -1482,6 +1527,11 @@ impl Engine {
     /// Try word boundary shortcuts (triggered by space, punctuation, etc.)
     /// The `trigger_char` is appended to the output (space for space, punctuation for punctuation)
     fn try_word_boundary_shortcut_with_char(&mut self, trigger_char: char) -> Result {
+        if !self.shortcut_expansion_allowed() {
+            self.shortcut_prefix.clear();
+            return Result::none();
+        }
+
         // Issue #107: Allow shortcuts with special char prefix (like "#fne")
         // If shortcut_prefix is set, we still try to match even with empty buffer
         if self.buf.is_empty() && self.shortcut_prefix.is_empty() {

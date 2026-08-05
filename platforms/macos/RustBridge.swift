@@ -585,6 +585,7 @@ private let FLAG_KEY_CONSUMED: UInt8 = 0x01 // Key was consumed by shortcut, don
 @_silgen_name("ime_key_with_char") private func ime_key_with_char(_ key: UInt16, _ caps: Bool, _ ctrl: Bool, _ shift: Bool, _ charCode: UInt32) -> UnsafeMutablePointer<ImeResult>?
 @_silgen_name("ime_method") private func ime_method(_ method: UInt8)
 @_silgen_name("ime_enabled") private func ime_enabled(_ enabled: Bool)
+@_silgen_name("ime_shortcut_expansion") private func ime_shortcut_expansion(_ enabled: Bool, _ inEnglish: Bool, _ inVietnamese: Bool)
 @_silgen_name("ime_skip_w_shortcut") private func ime_skip_w_shortcut(_ skip: Bool)
 @_silgen_name("ime_bracket_shortcut") private func ime_bracket_shortcut(_ enabled: Bool)
 @_silgen_name("ime_esc_restore") private func ime_esc_restore(_ enabled: Bool)
@@ -659,6 +660,10 @@ class RustBridge {
     static func setEnabled(_ enabled: Bool) {
         // GATE: Only enable if input source is allowed, always allow disable
         ime_enabled(enabled && InputSourceObserver.shared.isAllowedInputSource)
+    }
+
+    static func setShortcutExpansion(enabled: Bool, inEnglish: Bool, inVietnamese: Bool) {
+        ime_shortcut_expansion(enabled, inEnglish, inVietnamese)
     }
 
     /// Set whether to skip w→ư shortcut in Telex mode

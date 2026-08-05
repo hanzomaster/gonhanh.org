@@ -17,6 +17,8 @@ fi
 # Parse arguments
 CLEAN_INSTALL=false
 CUSTOM_VERSION=""
+CUSTOM_BUILD=false
+SKIP_ACCESSIBILITY_UPDATE=false
 SIGN_APP=false
 NOTARIZE_APP=false
 
@@ -29,6 +31,14 @@ while [[ $# -gt 0 ]]; do
         --version|-v)
             CUSTOM_VERSION="$2"
             shift 2
+            ;;
+        --custom)
+            CUSTOM_BUILD=true
+            shift
+            ;;
+        --skip-accessibility-update)
+            SKIP_ACCESSIBILITY_UPDATE=true
+            shift
             ;;
         --sign|-s)
             SIGN_APP=true
@@ -45,6 +55,9 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --version, -v VERSION  Build with custom version (e.g., 0.9.0 for testing updates)"
             echo "  --clean                Remove existing GoNhanh app and clear permissions before building"
+            echo "  --custom               Mark as a custom build and disable official binary updates"
+            echo "  --skip-accessibility-update"
+            echo "                         Do not modify the system TCC database after signing"
             echo "  --sign, -s             Sign with Developer ID (requires certificate in Keychain)"
             echo "  --notarize, -n         Sign and notarize for distribution (requires Apple ID credentials)"
             echo "  --help                 Show this help message"
@@ -52,6 +65,7 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  ./build-macos.sh                    # Build with ad-hoc signing (development)"
             echo "  ./build-macos.sh -v 0.9.0           # Build with version 0.9.0"
+            echo "  ./build-macos.sh --custom           # Build without official binary updates"
             echo "  ./build-macos.sh --sign             # Build with Developer ID signing"
             echo "  ./build-macos.sh --notarize         # Build, sign, and notarize for distribution"
             echo ""
@@ -210,7 +224,14 @@ if [ -d "GoNhanh.xcodeproj" ]; then
     # Copy app from DerivedData to local build directory
     echo "Copying app to build directory..."
     mkdir -p build/Release
+    rm -rf build/Release/GoNhanh.app
     cp -R "build/DerivedData/Build/Products/Release/GoNhanh.app" build/Release/
+
+    if [ "$CUSTOM_BUILD" = true ]; then
+        /usr/libexec/PlistBuddy -c "Add :GoNhanhCustomBuild bool true" build/Release/GoNhanh.app/Contents/Info.plist 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :GoNhanhCustomBuild true" build/Release/GoNhanh.app/Contents/Info.plist
+        echo "Custom build: official binary updater disabled"
+    fi
 
     # Sign app with entitlements
     echo "Signing app with entitlements..."
@@ -247,7 +268,9 @@ if [ -d "GoNhanh.xcodeproj" ]; then
     TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
     NEW_CSREQ=$(codesign -d -r- build/Release/GoNhanh.app 2>&1 | awk -F ' => ' '/designated/{print $2}' | csreq -r- -b /dev/stdout | xxd -p | tr -d '\n' | tr '[:lower:]' '[:upper:]')
     OLD_CSREQ=$(sqlite3 "$TCC_DB" "SELECT hex(csreq) FROM access WHERE service='kTCCServiceAccessibility' AND client='$BUNDLE_ID'" 2>/dev/null || echo "")
-    if [ "$NEW_CSREQ" != "$OLD_CSREQ" ]; then
+    if [ "$SKIP_ACCESSIBILITY_UPDATE" = true ]; then
+        echo "Accessibility update skipped; grant access manually in System Settings if prompted"
+    elif [ "$NEW_CSREQ" != "$OLD_CSREQ" ]; then
         echo "Updating Accessibility permission..."
         sudo sqlite3 "$TCC_DB" "
             DELETE FROM access WHERE service='kTCCServiceAccessibility' AND client='$BUNDLE_ID';

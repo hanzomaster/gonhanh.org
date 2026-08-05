@@ -184,6 +184,18 @@ pub extern "C" fn ime_enabled(enabled: bool) {
     }
 }
 
+/// Configure text expansion globally and for English/Vietnamese modes.
+///
+/// Existing behavior is preserved when all three arguments are true.
+/// No-op if the engine is not initialized.
+#[no_mangle]
+pub extern "C" fn ime_shortcut_expansion(enabled: bool, in_english: bool, in_vietnamese: bool) {
+    let mut guard = lock_engine();
+    if let Some(ref mut e) = *guard {
+        e.set_shortcut_expansion(enabled, in_english, in_vietnamese);
+    }
+}
+
 /// Set whether to skip w→ư shortcut in Telex mode.
 ///
 /// When `skip` is true, typing 'w' stays as 'w' instead of
@@ -342,7 +354,7 @@ pub unsafe extern "C" fn ime_get_buffer(out: *mut u32, max_len: i64) -> i64 {
         let full = e.get_buffer_string();
         let utf32: Vec<u32> = full.chars().map(|c| c as u32).collect();
         let len = utf32.len().min(max_len as usize);
-        std::ptr::copy_nonoverlapping(utf32.as_ptr(), out, len);
+        unsafe { std::ptr::copy_nonoverlapping(utf32.as_ptr(), out, len) };
         len as i64
     } else {
         0
@@ -358,7 +370,7 @@ pub unsafe extern "C" fn ime_get_buffer(out: *mut u32, max_len: i64) -> i64 {
 #[no_mangle]
 pub unsafe extern "C" fn ime_free(r: *mut Result) {
     if !r.is_null() {
-        drop(Box::from_raw(r));
+        drop(unsafe { Box::from_raw(r) });
     }
 }
 
@@ -383,11 +395,11 @@ pub unsafe extern "C" fn ime_add_shortcut(
         return;
     }
 
-    let trigger_str = match std::ffi::CStr::from_ptr(trigger).to_str() {
+    let trigger_str = match unsafe { std::ffi::CStr::from_ptr(trigger) }.to_str() {
         Ok(s) => s,
         Err(_) => return,
     };
-    let replacement_str = match std::ffi::CStr::from_ptr(replacement).to_str() {
+    let replacement_str = match unsafe { std::ffi::CStr::from_ptr(replacement) }.to_str() {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -420,7 +432,7 @@ pub unsafe extern "C" fn ime_remove_shortcut(trigger: *const std::os::raw::c_cha
         return;
     }
 
-    let trigger_str = match std::ffi::CStr::from_ptr(trigger).to_str() {
+    let trigger_str = match unsafe { std::ffi::CStr::from_ptr(trigger) }.to_str() {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -460,7 +472,7 @@ pub unsafe extern "C" fn ime_restore_word(word: *const std::os::raw::c_char) {
     if word.is_null() {
         return;
     }
-    let word_str = match std::ffi::CStr::from_ptr(word).to_str() {
+    let word_str = match unsafe { std::ffi::CStr::from_ptr(word) }.to_str() {
         Ok(s) => s,
         Err(_) => return,
     };

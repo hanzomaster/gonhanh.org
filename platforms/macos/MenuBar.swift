@@ -125,6 +125,7 @@ class MenuBarController: NSObject, NSWindowDelegate {
         // Update
         updateMenuItem = NSMenuItem(title: "Kiểm tra cập nhật...", action: #selector(handleUpdateAction), keyEquivalent: "")
         updateMenuItem.target = self
+        updateMenuItem.isHidden = AppMetadata.isCustomBuild
         menu.addItem(updateMenuItem)
         menu.addItem(.separator())
 
@@ -248,6 +249,7 @@ class MenuBarController: NSObject, NSWindowDelegate {
         RustBridge.setSkipWShortcut(!appState.autoWShortcut)
         RustBridge.setBracketShortcut(appState.bracketShortcut)
         RustBridge.setRestoreShortcutEnabled(appState.restoreShortcutEnabled)
+        appState.syncShortcutExpansionToEngine()
         RustBridge.setEnglishAutoRestore(appState.englishAutoRestore)
         RustBridge.setAutoCapitalize(appState.autoCapitalize)
         RustBridge.setAllowForeignConsonants(appState.allowForeignConsonants)
@@ -256,13 +258,15 @@ class MenuBarController: NSObject, NSWindowDelegate {
         appState.syncShortcutsToEngine()
         PerAppModeManager.shared.start()
 
-        // Background auto-update (check every 1h, download silently)
-        UpdateManager.shared.startBackgroundUpdates()
+        if !AppMetadata.isCustomBuild {
+            // Background auto-update (check every 1h, download silently)
+            UpdateManager.shared.startBackgroundUpdates()
 
-        // Observe update state to sync menu item
-        stateObserver = NotificationCenter.default.addObserver(
-            forName: .updateStateChanged, object: nil, queue: .main
-        ) { [weak self] _ in self?.syncUpdateMenuItem() }
+            // Observe update state to sync menu item
+            stateObserver = NotificationCenter.default.addObserver(
+                forName: .updateStateChanged, object: nil, queue: .main
+            ) { [weak self] _ in self?.syncUpdateMenuItem() }
+        }
     }
 
     // MARK: - Status Button

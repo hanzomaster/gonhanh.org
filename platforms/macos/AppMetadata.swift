@@ -17,6 +17,7 @@ enum AppMetadata {
     static let tagline = "Bộ gõ tiếng Việt hiệu suất cao"
     static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    static let isCustomBuild = Bundle.main.infoDictionary?["GoNhanhCustomBuild"] as? Bool ?? false
 
     // Author
     static let author = "Kha Phan"
@@ -76,6 +77,9 @@ enum SettingsKey {
     static let perAppMode = "gonhanh.perAppMode"
     static let perAppModes = "gonhanh.perAppModes"
     static let shortcuts = "gonhanh.shortcuts"
+    static let shortcutExpansionEnabled = "gonhanh.shortcutExpansion.enabled"
+    static let shortcutExpansionInEnglish = "gonhanh.shortcutExpansion.english"
+    static let shortcutExpansionInVietnamese = "gonhanh.shortcutExpansion.vietnamese"
     static let autoWShortcut = "gonhanh.autoWShortcut"
     static let bracketShortcut = "gonhanh.bracketShortcut"
     static let restoreShortcutEnabled = "gonhanh.escRestore" // Keep old key for backward compat
