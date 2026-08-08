@@ -1,0 +1,163 @@
+---
+name: Prepare Upstream Update
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-update
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    permissions:
+      contents: write
+      issues: write
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.sync.outputs.branch }}
+      updated: ${{ steps.sync.outputs.updated }}
+      version: ${{ steps.sync.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: custom/shortcut-scope
+
+      - name: Merge new upstream changes
+        id: sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="automation/upstream-sync"
+          BOT_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          UPSTREAM_URL="https://github.com/khaphanspace/gonhanh.org.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "$BOT_EMAIL"
+          git remote add upstream "$UPSTREAM_URL"
+          git fetch upstream main --tags
+
+          VERSION="$(git describe --tags --abbrev=0 --match 'v*' upstream/main)"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "The custom branch already contains $VERSION."
+            exit 0
+          fi
+
+          git switch -C "$BRANCH"
+          if ! git merge --no-edit upstream/main; then
+            CONFLICTS="$(
+              git diff --name-only --diff-filter=U |
+                sed 's/^/- `/' |
+                sed 's/$/`/'
+            )"
+            git merge --abort
+
+            TITLE="Upstream sync conflict for $VERSION"
+            EXISTING="$(
+              gh issue list \
+                --state open \
+                --search "$TITLE in:title" \
+                --json number \
+                --jq '.[0].number // empty'
+            )"
+            if [ -z "$EXISTING" ]; then
+              BODY="$(cat <<EOF
+          The automatic upstream merge needs manual conflict resolution.
+
+          Conflicting files:
+          $CONFLICTS
+
+          Run the manual update procedure in \`AGENTS.md\`.
+          EOF
+              )"
+              gh issue create --title "$TITLE" --body "$BODY"
+            fi
+            exit 1
+          fi
+
+          git push --force-with-lease \
+            origin "HEAD:refs/heads/$BRANCH"
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+
+          EXISTING="$(
+            gh issue list \
+              --state open \
+              --search "Upstream sync conflict in:title" \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" \
+              --comment "The automatic merge now succeeds for $VERSION."
+          fi
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.updated == 'true'
+    uses: ./.github/workflows/custom-macos-build.yml
+    with:
+      ref: ${{ needs.prepare.outputs.branch }}
+
+  open-pr:
+    needs:
+      - prepare
+      - build
+    if: >-
+      needs.prepare.outputs.updated == 'true' &&
+      needs.build.result == 'success'
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      UPDATE_BRANCH: ${{ needs.prepare.outputs.branch }}
+      UPSTREAM_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Open or update pull request
+        run: |
+          set -euo pipefail
+
+          EXISTING="$(
+            gh pr list \
+              --head "$UPDATE_BRANCH" \
+              --base custom/shortcut-scope \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ -n "$EXISTING" ]; then
+            gh pr comment "$EXISTING" \
+              --body "Rebuilt against $UPSTREAM_VERSION. Artifact: $RUN_URL"
+            exit 0
+          fi
+
+          BODY="$(cat <<EOF
+          Merges upstream $UPSTREAM_VERSION into the custom branch.
+
+          The shortcut-scope tests and custom universal macOS build passed.
+          Download \`GoNhanh-custom-macOS\` from the [workflow run]($RUN_URL)
+          before merging if you want to test it.
+
+          After this PR is merged, the custom branch is mirrored to \`main\`
+          automatically.
+          EOF
+          )"
+          gh pr create \
+            --base custom/shortcut-scope \
+            --head "$UPDATE_BRANCH" \
+            --title "chore: sync upstream $UPSTREAM_VERSION" \
+            --body "$BODY"

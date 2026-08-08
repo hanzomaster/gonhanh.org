@@ -1,0 +1,29 @@
+---
+name: Mirror Custom Branch to Main
+
+on:
+  pull_request:
+    branches:
+      - custom/shortcut-scope
+    types:
+      - closed
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'automation/upstream-sync'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: custom/shortcut-scope
+
+      - name: Fast-forward main to the updated custom branch
+        run: git push origin HEAD:main
