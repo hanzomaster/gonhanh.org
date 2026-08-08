@@ -17,7 +17,6 @@ jobs:
   prepare:
     permissions:
       contents: write
-      issues: write
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.sync.outputs.branch }}
@@ -29,79 +28,52 @@ jobs:
           fetch-depth: 0
           ref: custom/shortcut-scope
 
-      - name: Merge new upstream changes
+      - name: Merge a new stable upstream release
         id: sync
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
           BRANCH="automation/upstream-sync"
           BOT_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
           UPSTREAM_URL="https://github.com/khaphanspace/gonhanh.org.git"
+          RELEASE_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
           git config user.name "github-actions[bot]"
           git config user.email "$BOT_EMAIL"
           git remote add upstream "$UPSTREAM_URL"
           git fetch upstream main --tags
 
-          VERSION="$(git describe --tags --abbrev=0 --match 'v*' upstream/main)"
+          VERSION="$(
+            git tag --merged upstream/main --sort=-version:refname |
+              grep -E "$RELEASE_PATTERN" |
+              sed -n '1p'
+          )"
+          if [ -z "$VERSION" ]; then
+            echo "::error::No stable release tag found on upstream/main."
+            exit 1
+          fi
+
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          if git merge-base --is-ancestor upstream/main HEAD; then
+          if git merge-base --is-ancestor "$VERSION" HEAD; then
             echo "updated=false" >> "$GITHUB_OUTPUT"
             echo "The custom branch already contains $VERSION."
             exit 0
           fi
 
           git switch -C "$BRANCH"
-          if ! git merge --no-edit upstream/main; then
-            CONFLICTS="$(
-              git diff --name-only --diff-filter=U |
-                sed 's/^/- `/' |
-                sed 's/$/`/'
-            )"
+          if ! git merge --no-edit "$VERSION"; then
+            CONFLICTS="$(git diff --name-only --diff-filter=U)"
+            echo "::error title=Upstream merge conflict::$VERSION"
+            echo "Conflicting files:"
+            echo "$CONFLICTS"
             git merge --abort
-
-            TITLE="Upstream sync conflict for $VERSION"
-            EXISTING="$(
-              gh issue list \
-                --state open \
-                --search "$TITLE in:title" \
-                --json number \
-                --jq '.[0].number // empty'
-            )"
-            if [ -z "$EXISTING" ]; then
-              BODY="$(cat <<EOF
-          The automatic upstream merge needs manual conflict resolution.
-
-          Conflicting files:
-          $CONFLICTS
-
-          Run the manual update procedure in \`AGENTS.md\`.
-          EOF
-              )"
-              gh issue create --title "$TITLE" --body "$BODY"
-            fi
             exit 1
           fi
 
           git push --force-with-lease \
             origin "HEAD:refs/heads/$BRANCH"
           echo "updated=true" >> "$GITHUB_OUTPUT"
-
-          EXISTING="$(
-            gh issue list \
-              --state open \
-              --search "Upstream sync conflict in:title" \
-              --json number \
-              --jq '.[0].number // empty'
-          )"
-          if [ -n "$EXISTING" ]; then
-            gh issue close "$EXISTING" \
-              --comment "The automatic merge now succeeds for $VERSION."
-          fi
 
   build:
     needs: prepare
