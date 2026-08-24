@@ -3,14 +3,6 @@ name: Update Contributors
 on:
   push:
     branches: [main]
-  issues:
-    types: [opened]
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-  schedule:
-    - cron: '0 0 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -35,7 +27,7 @@ jobs:
 
       - name: Generate contributors
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTRIBUTORS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CONTRIBUTORS_TOKEN || github.token }}
         run: node scripts/release/contributors.js
 
       - name: Commit if changed

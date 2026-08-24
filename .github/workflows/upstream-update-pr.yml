@@ -11,13 +11,14 @@ permissions:
 
 concurrency:
   group: upstream-update
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   prepare:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       branch: ${{ steps.sync.outputs.branch }}
       updated: ${{ steps.sync.outputs.updated }}
@@ -61,6 +62,13 @@ jobs:
             exit 0
           fi
 
+          if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH" &&
+            git merge-base --is-ancestor "$VERSION" "origin/$BRANCH"; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "$BRANCH already contains $VERSION; waiting for its pull request."
+            exit 0
+          fi
+
           git switch -C "$BRANCH"
           if ! git merge --no-edit "$VERSION"; then
             CONFLICTS="$(git diff --name-only --diff-filter=U)"
@@ -92,6 +100,7 @@ jobs:
     permissions:
       pull-requests: write
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

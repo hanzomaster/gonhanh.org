@@ -22,22 +22,6 @@ jobs:
       - run: cargo clippy --manifest-path core/Cargo.toml -- -D warnings
       - run: cargo test --manifest-path core/Cargo.toml
 
-  build-macos:
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: core
-      - name: Install swiftformat
-        run: brew install swiftformat
-      - name: Check Swift formatting
-        run: swiftformat --lint platforms/macos
-      - run: cargo build --manifest-path core/Cargo.toml --release
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -79,4 +63,3 @@ jobs:
           ./keycodemap_test --gtest_color=yes
           LD_LIBRARY_PATH="${GITHUB_WORKSPACE}/core/target/release:$LD_LIBRARY_PATH" \
             ./rustbridge_test --gtest_color=yes
-

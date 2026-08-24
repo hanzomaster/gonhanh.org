@@ -20,6 +20,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-26
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +32,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
+          save-if: ${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Check Swift formatting
+        run: |
+          brew list swiftformat >/dev/null 2>&1 || brew install swiftformat
+          swiftformat --lint platforms/macos
 
       - name: Test shortcut expansion settings
         run: >-
@@ -75,4 +82,4 @@ jobs:
         with:
           name: GoNhanh-custom-macOS
           path: platforms/macos/build/GoNhanh-custom.zip
-          retention-days: 14
+          retention-days: 3
