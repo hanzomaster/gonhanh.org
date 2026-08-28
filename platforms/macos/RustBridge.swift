@@ -823,6 +823,42 @@ private func isAccessibilityKeyboardVisible() -> Bool {
 
 // MARK: - Keyboard Hook Manager
 
+enum SecureInputTransition: Equatable {
+    case unchanged
+    case becameBlocked
+    case becameAvailable
+}
+
+struct SecureInputStateTracker {
+    private(set) var isBlocked = false
+
+    mutating func update(isBlocked newValue: Bool) -> SecureInputTransition {
+        guard newValue != isBlocked else { return .unchanged }
+        isBlocked = newValue
+        return newValue ? .becameBlocked : .becameAvailable
+    }
+}
+
+enum SecureInputPresentation {
+    static func shouldShow(engineEnabled: Bool, inputSourceAllowed: Bool, secureInputBlocked: Bool) -> Bool {
+        engineEnabled && inputSourceAllowed && secureInputBlocked
+    }
+}
+
+enum SecureInputRefreshPolicy {
+    static let watchdogInterval: TimeInterval = 2.0
+    static let watchdogTolerance: TimeInterval = 0.5
+    static let mouseSettleDelay: TimeInterval = 0.05
+    static let workspaceNotifications: [Notification.Name] = [
+        NSWorkspace.didWakeNotification,
+        NSWorkspace.sessionDidBecomeActiveNotification,
+    ]
+
+    static func shouldRefreshAfterMouseEvent(_ type: NSEvent.EventType) -> Bool {
+        type == .leftMouseUp
+    }
+}
+
 class KeyboardHookManager {
     static let shared = KeyboardHookManager()
 
@@ -830,8 +866,10 @@ class KeyboardHookManager {
     private var runLoopSource: CFRunLoopSource?
     private var mouseMonitor: Any? // NSEvent monitor for mouse clicks
     private var watchdogTimer: Timer? // periodically re-enables a silently-disabled tap
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var isRunning = false
     private var currentTapIsSession = false // which tap level the active hook was created at
+    private var secureInputState = SecureInputStateTracker()
 
     private init() {}
 
@@ -890,6 +928,8 @@ class KeyboardHookManager {
             isRunning = true
             setupShortcutObserver()
             startMouseMonitor()
+            startWorkspaceObservers()
+            refreshSecureInputState()
             startWatchdog()
         }
     }
@@ -903,8 +943,9 @@ class KeyboardHookManager {
     /// relaunched. This timer recovers it within a couple seconds, unattended.
     private func startWatchdog() {
         watchdogTimer?.invalidate()
-        let timer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: SecureInputRefreshPolicy.watchdogInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
+            self.refreshSecureInputState()
             // Issue #395: switch tap level when the Accessibility Keyboard panel appears or
             // disappears, so its session-level keystrokes are captured only while it is up.
             if self.wantsSessionTap != self.currentTapIsSession {
@@ -918,16 +959,55 @@ class KeyboardHookManager {
                 Log.info("watchdog: event tap was disabled, re-enabled")
             }
         }
+        timer.tolerance = SecureInputRefreshPolicy.watchdogTolerance
         // .common so it keeps firing during menu/modal run-loop tracking too.
         RunLoop.main.add(timer, forMode: .common)
         watchdogTimer = timer
+    }
+
+    /// Track macOS Secure Input without attempting to bypass it.
+    ///
+    /// Secure Input intentionally prevents event taps from receiving keyboard events.
+    /// Once the owning password field releases it, re-enable our tap and discard any
+    /// pending composition so the next word starts from a clean state.
+    func refreshSecureInputState() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.refreshSecureInputState() }
+            return
+        }
+        // A delayed mouse/workspace refresh may outlive stop() by one run-loop turn.
+        // Ignore it so a stopped engine neither queries Secure Input nor republishes UI state.
+        guard isRunning else { return }
+
+        switch secureInputState.update(isBlocked: IsSecureEventInputEnabled()) {
+        case .unchanged:
+            return
+        case .becameBlocked:
+            RustBridge.clearBufferAll()
+            AppState.shared.setSecureInputBlocked(true)
+            Log.info("secure input: blocked")
+        case .becameAvailable:
+            RustBridge.clearBufferAll()
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            AppState.shared.setSecureInputBlocked(false)
+            Log.info("secure input: available, event tap re-enabled")
+        }
     }
 
     /// Start NSEvent global monitor for mouse events
     /// This is more reliable than CGEventTap for detecting mouse clicks
     private func startMouseMonitor() {
         // Monitor both mouseDown and mouseUp to catch clicks and drag-selects
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { _ in
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
+            // Mouse-up runs after focus normally settles. Query only once per click;
+            // mouse-down still clears composition below but does no Secure Input work.
+            if SecureInputRefreshPolicy.shouldRefreshAfterMouseEvent(event.type) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + SecureInputRefreshPolicy.mouseSettleDelay) {
+                    KeyboardHookManager.shared.refreshSecureInputState()
+                }
+            }
             // Issue #395: tapping a key on the macOS Accessibility Keyboard (on-screen
             // keyboard) is a mouse click on its panel. That panel is non-activating, so the
             // text cursor never moves — clearing the buffer here would wipe each character
@@ -939,7 +1019,28 @@ class KeyboardHookManager {
         }
     }
 
+    /// Wake/unlock are rare, event-driven opportunities to recover immediately.
+    /// The watchdog remains the only fallback for background holders that emit no event.
+    private func startWorkspaceObservers() {
+        stopWorkspaceObservers()
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers = SecureInputRefreshPolicy.workspaceNotifications.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refreshSecureInputState()
+            }
+        }
+    }
+
+    private func stopWorkspaceObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers.forEach(center.removeObserver)
+        workspaceObservers.removeAll()
+    }
+
     func stop() {
+        secureInputState = SecureInputStateTracker()
+        AppState.shared.setSecureInputBlocked(false)
+        stopWorkspaceObservers()
         guard isRunning else { return }
         watchdogTimer?.invalidate()
         watchdogTimer = nil
@@ -949,6 +1050,7 @@ class KeyboardHookManager {
         // Remove notification observers to prevent leak across restart() cycles
         if let obs = shortcutObserver { NotificationCenter.default.removeObserver(obs); shortcutObserver = nil }
         if let obs = restoreShortcutObserver { NotificationCenter.default.removeObserver(obs); restoreShortcutObserver = nil }
+        if let obs = secondaryShortcutObserver { NotificationCenter.default.removeObserver(obs); secondaryShortcutObserver = nil }
         eventTap = nil
         runLoopSource = nil
         mouseMonitor = nil
@@ -1026,11 +1128,13 @@ private let kModifierMask: CGEventFlags = [.maskSecondaryFn, .maskControl, .mask
 private var modifierChord = ModifierChordTracker()
 private var currentShortcut = KeyboardShortcut.load()
 private var currentRestoreShortcut = KeyboardShortcut.loadRestoreShortcut()
+private var currentSecondaryShortcut = KeyboardShortcut.activeSecondaryToggle() // nil when disabled
 private var isRecordingShortcut = false
 private var recordingModifiers: CGEventFlags = [] // Current modifiers being held
 private var peakRecordingModifiers: CGEventFlags = [] // Peak modifiers during recording
 private var shortcutObserver: NSObjectProtocol?
 private var restoreShortcutObserver: NSObjectProtocol?
+private var secondaryShortcutObserver: NSObjectProtocol?
 /// Skip word restore after mouse click (user may be selecting/deleting text)
 /// Reset to false after first keystroke
 private var skipWordRestoreAfterClick = false
@@ -1173,10 +1277,15 @@ func setupShortcutObserver() {
     restoreShortcutObserver = NotificationCenter.default.addObserver(forName: .restoreShortcutChanged, object: nil, queue: .main) { _ in
         currentRestoreShortcut = KeyboardShortcut.loadRestoreShortcut()
     }
+    secondaryShortcutObserver = NotificationCenter.default.addObserver(forName: .secondaryShortcutChanged, object: nil, queue: .main) { _ in
+        currentSecondaryShortcut = KeyboardShortcut.activeSecondaryToggle()
+    }
 }
 
+/// Either the primary or the (optional) secondary toggle shortcut fires the toggle.
 private func matchesToggleShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
     currentShortcut.matches(keyCode: keyCode, flags: flags)
+        || currentSecondaryShortcut?.matches(keyCode: keyCode, flags: flags) == true
 }
 
 private func matchesRestoreShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
@@ -1190,6 +1299,7 @@ private func matchesRestoreShortcut(keyCode: UInt16, flags: CGEventFlags) -> Boo
 
 private func matchesModifierOnlyShortcut(flags: CGEventFlags) -> Bool {
     currentShortcut.matchesModifierOnly(flags: flags)
+        || currentSecondaryShortcut?.matchesModifierOnly(flags: flags) == true
 }
 
 /// Trigger restore shortcut - restore raw ASCII and clear buffer
@@ -1764,6 +1874,7 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
         "com.vivaldi.Vivaldi", // Vivaldi
         "com.vivaldi.Vivaldi.snapshot", // Vivaldi Snapshot
         "ru.yandex.desktop.yandex-browser", // Yandex Browser
+        "net.imput.helium", // Helium
         // Opera
         "com.opera.Opera", // Opera
         "com.operasoftware.Opera", // Opera (alt)
@@ -1819,6 +1930,10 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
 
     // Foxit PDF Reader - char-by-char for reliable Vietnamese input in form fields
     if bundleId == "com.foxit-software.Foxit.PDF.Reader" { return cached(.charByChar, (0, 0, 0), "char:foxit") }
+
+    // Adobe apps (Illustrator, InDesign, Photoshop, ...) use a custom text engine that only
+    // reads the first character of a multi-character key event, so chunked text is truncated.
+    if bundleId.hasPrefix("com.adobe.") { return cached(.charByChar, (3000, 8000, 3000), "char:adobe") }
 
     // Games - synchronous proxy injection (Issue #264: Vietnamese typing in LOL)
     if bundleId.hasPrefix("com.riotgames") { return cached(.syncProxy, (0, 0, 0), "sync:game") }
@@ -2072,10 +2187,18 @@ class PerAppModeManager {
         Log.info("AX: spotlight sync")
         SpecialPanelAppDetector.updateLastFrontMostApp(bundleId)
         SpecialPanelAppDetector.invalidateCache()
-        handleAppSwitch(bundleId)
+        // This fallback runs inside the event-tap callback. Keep the synchronous
+        // Secure Input query off that latency-sensitive path.
+        DispatchQueue.main.async {
+            KeyboardHookManager.shared.refreshSecureInputState()
+        }
+        handleAppSwitch(bundleId, refreshSecureInput: false)
     }
 
-    private func handleAppSwitch(_ bundleId: String) {
+    private func handleAppSwitch(_ bundleId: String, refreshSecureInput: Bool = true) {
+        if refreshSecureInput {
+            KeyboardHookManager.shared.refreshSecureInputState()
+        }
         guard bundleId != currentBundleId else { return }
         Log.info("App: \(currentBundleId ?? "nil") → \(bundleId)")
 
@@ -2131,6 +2254,7 @@ extension Notification.Name {
     static let toggleVietnamese = Notification.Name("toggleVietnamese")
     static let shortcutChanged = Notification.Name("shortcutChanged")
     static let restoreShortcutChanged = Notification.Name("restoreShortcutChanged")
+    static let secondaryShortcutChanged = Notification.Name("secondaryShortcutChanged")
     static let shortcutRecorded = Notification.Name("shortcutRecorded")
     static let shortcutRecordingCancelled = Notification.Name("shortcutRecordingCancelled")
 }
