@@ -33,9 +33,13 @@ private enum Log {
     private static var keystrokeCount: UInt64 = 0
 
     static var isEnabled: Bool {
-        if let cached = _enabled { return cached }
+        if let cached = _enabled {
+            return cached
+        }
         _enabled = FileManager.default.fileExists(atPath: logPath)
-        if _enabled == true { startPerfLogging() }
+        if _enabled == true {
+            startPerfLogging()
+        }
         return _enabled!
     }
 
@@ -157,7 +161,9 @@ private func isBreakKey(_ keyCode: CGKeyCode, shift: Bool) -> Bool {
         KeyCode.equal, KeyCode.backquote,
     ]
 
-    if standardBreak.contains(keyCode) { return true }
+    if standardBreak.contains(keyCode) {
+        return true
+    }
 
     // Shifted number keys produce symbols: !@#$%^&*()
     if shift {
@@ -265,7 +271,9 @@ private class TextInjector {
             postKey(KeyCode.backspace, source: src)
             usleep(delays.0)
         }
-        if bs > 0 { usleep(delays.1) }
+        if bs > 0 {
+            usleep(delays.1)
+        }
 
         let chunks = postText(text, source: src, delay: delays.2, chunkSize: charByChar ? 1 : 20)
 
@@ -334,7 +342,9 @@ private class TextInjector {
             postKey(KeyCode.backspace, source: src, proxy: proxy)
             usleep(1000)
         }
-        if bs > 0 { usleep(5000) }
+        if bs > 0 {
+            usleep(5000)
+        }
 
         // Type replacement text
         postText(text, source: src, proxy: proxy)
@@ -453,7 +463,9 @@ private class TextInjector {
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else { return }
         dn.setIntegerValueField(.eventSourceUserData, value: kEventMarker)
         up.setIntegerValueField(.eventSourceUserData, value: kEventMarker)
-        if !flags.isEmpty { dn.flags = flags; up.flags = flags }
+        if !flags.isEmpty {
+            dn.flags = flags; up.flags = flags
+        }
 
         if let proxy {
             dn.tapPostEvent(proxy)
@@ -486,7 +498,9 @@ private class TextInjector {
             // Send Return key between segments (not after the last one)
             if i < segments.count - 1 {
                 postKey(KeyCode.returnKey, source: source, proxy: proxy)
-                if delay > 0 { usleep(delay) }
+                if delay > 0 {
+                    usleep(delay)
+                }
                 totalChunks += 1
             }
         }
@@ -523,7 +537,9 @@ private class TextInjector {
                 dn.post(tap: .cgSessionEventTap)
                 up.post(tap: .cgSessionEventTap)
             }
-            if delay > 0 { usleep(delay) }
+            if delay > 0 {
+                usleep(delay)
+            }
             offset = end
         }
         return chunkNum
@@ -787,7 +803,9 @@ private func isClickOnAccessibilityKeyboard(_ nsPoint: CGPoint) -> Bool {
     for w in windows {
         // Skip fully transparent overlay windows that would otherwise shadow the panel.
         let alpha = (w[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1.0
-        if alpha <= 0.01 { continue }
+        if alpha <= 0.01 {
+            continue
+        }
 
         guard let boundsDict = w[kCGWindowBounds as String] as? NSDictionary,
               let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
@@ -812,16 +830,56 @@ private func isAccessibilityKeyboardVisible() -> Bool {
     for w in windows {
         guard windowIsAccessibilityKeyboard(w) else { continue }
         let alpha = (w[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1.0
-        if alpha <= 0.01 { continue }
+        if alpha <= 0.01 {
+            continue
+        }
         guard let boundsDict = w[kCGWindowBounds as String] as? NSDictionary,
               let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
         // The keyboard panel is large; ignore tiny helper/menu windows the process may own.
-        if bounds.width >= 200, bounds.height >= 80 { return true }
+        if bounds.width >= 200, bounds.height >= 80 {
+            return true
+        }
     }
     return false
 }
 
 // MARK: - Keyboard Hook Manager
+
+enum SecureInputTransition: Equatable {
+    case unchanged
+    case becameBlocked
+    case becameAvailable
+}
+
+struct SecureInputStateTracker {
+    private(set) var isBlocked = false
+
+    mutating func update(isBlocked newValue: Bool) -> SecureInputTransition {
+        guard newValue != isBlocked else { return .unchanged }
+        isBlocked = newValue
+        return newValue ? .becameBlocked : .becameAvailable
+    }
+}
+
+enum SecureInputPresentation {
+    static func shouldShow(engineEnabled: Bool, inputSourceAllowed: Bool, secureInputBlocked: Bool) -> Bool {
+        engineEnabled && inputSourceAllowed && secureInputBlocked
+    }
+}
+
+enum SecureInputRefreshPolicy {
+    static let watchdogInterval: TimeInterval = 2.0
+    static let watchdogTolerance: TimeInterval = 0.5
+    static let mouseSettleDelay: TimeInterval = 0.05
+    static let workspaceNotifications: [Notification.Name] = [
+        NSWorkspace.didWakeNotification,
+        NSWorkspace.sessionDidBecomeActiveNotification,
+    ]
+
+    static func shouldRefreshAfterMouseEvent(_ type: NSEvent.EventType) -> Bool {
+        type == .leftMouseUp
+    }
+}
 
 class KeyboardHookManager {
     static let shared = KeyboardHookManager()
@@ -830,8 +888,10 @@ class KeyboardHookManager {
     private var runLoopSource: CFRunLoopSource?
     private var mouseMonitor: Any? // NSEvent monitor for mouse clicks
     private var watchdogTimer: Timer? // periodically re-enables a silently-disabled tap
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var isRunning = false
     private var currentTapIsSession = false // which tap level the active hook was created at
+    private var secureInputState = SecureInputStateTracker()
 
     private init() {}
 
@@ -890,6 +950,8 @@ class KeyboardHookManager {
             isRunning = true
             setupShortcutObserver()
             startMouseMonitor()
+            startWorkspaceObservers()
+            refreshSecureInputState()
             startWatchdog()
         }
     }
@@ -903,8 +965,9 @@ class KeyboardHookManager {
     /// relaunched. This timer recovers it within a couple seconds, unattended.
     private func startWatchdog() {
         watchdogTimer?.invalidate()
-        let timer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: SecureInputRefreshPolicy.watchdogInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
+            self.refreshSecureInputState()
             // Issue #395: switch tap level when the Accessibility Keyboard panel appears or
             // disappears, so its session-level keystrokes are captured only while it is up.
             if self.wantsSessionTap != self.currentTapIsSession {
@@ -918,37 +981,112 @@ class KeyboardHookManager {
                 Log.info("watchdog: event tap was disabled, re-enabled")
             }
         }
+        timer.tolerance = SecureInputRefreshPolicy.watchdogTolerance
         // .common so it keeps firing during menu/modal run-loop tracking too.
         RunLoop.main.add(timer, forMode: .common)
         watchdogTimer = timer
+    }
+
+    /// Track macOS Secure Input without attempting to bypass it.
+    ///
+    /// Secure Input intentionally prevents event taps from receiving keyboard events.
+    /// Once the owning password field releases it, re-enable our tap and discard any
+    /// pending composition so the next word starts from a clean state.
+    func refreshSecureInputState() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.refreshSecureInputState() }
+            return
+        }
+        // A delayed mouse/workspace refresh may outlive stop() by one run-loop turn.
+        // Ignore it so a stopped engine neither queries Secure Input nor republishes UI state.
+        guard isRunning else { return }
+
+        switch secureInputState.update(isBlocked: IsSecureEventInputEnabled()) {
+        case .unchanged:
+            return
+        case .becameBlocked:
+            RustBridge.clearBufferAll()
+            AppState.shared.setSecureInputBlocked(true)
+            Log.info("secure input: blocked")
+        case .becameAvailable:
+            RustBridge.clearBufferAll()
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            AppState.shared.setSecureInputBlocked(false)
+            Log.info("secure input: available, event tap re-enabled")
+        }
     }
 
     /// Start NSEvent global monitor for mouse events
     /// This is more reliable than CGEventTap for detecting mouse clicks
     private func startMouseMonitor() {
         // Monitor both mouseDown and mouseUp to catch clicks and drag-selects
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { _ in
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
+            // Mouse-up runs after focus normally settles. Query only once per click;
+            // mouse-down still clears composition below but does no Secure Input work.
+            if SecureInputRefreshPolicy.shouldRefreshAfterMouseEvent(event.type) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + SecureInputRefreshPolicy.mouseSettleDelay) {
+                    KeyboardHookManager.shared.refreshSecureInputState()
+                }
+            }
             // Issue #395: tapping a key on the macOS Accessibility Keyboard (on-screen
             // keyboard) is a mouse click on its panel. That panel is non-activating, so the
             // text cursor never moves — clearing the buffer here would wipe each character
             // before the next one arrives and Telex/VNI could never compose. Skip the clear
             // for clicks that land on the keyboard panel itself.
-            if isClickOnAccessibilityKeyboard(NSEvent.mouseLocation) { return }
+            if isClickOnAccessibilityKeyboard(NSEvent.mouseLocation) {
+                return
+            }
             RustBridge.clearBufferAll() // Clear everything including word history
             skipWordRestoreAfterClick = true
         }
     }
 
+    /// Wake/unlock are rare, event-driven opportunities to recover immediately.
+    /// The watchdog remains the only fallback for background holders that emit no event.
+    private func startWorkspaceObservers() {
+        stopWorkspaceObservers()
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers = SecureInputRefreshPolicy.workspaceNotifications.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refreshSecureInputState()
+            }
+        }
+    }
+
+    private func stopWorkspaceObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers.forEach(center.removeObserver)
+        workspaceObservers.removeAll()
+    }
+
     func stop() {
+        secureInputState = SecureInputStateTracker()
+        AppState.shared.setSecureInputBlocked(false)
+        stopWorkspaceObservers()
         guard isRunning else { return }
         watchdogTimer?.invalidate()
         watchdogTimer = nil
-        if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let src = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), src, .commonModes) }
-        if let monitor = mouseMonitor { NSEvent.removeMonitor(monitor) }
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
+        if let src = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), src, .commonModes)
+        }
+        if let monitor = mouseMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         // Remove notification observers to prevent leak across restart() cycles
-        if let obs = shortcutObserver { NotificationCenter.default.removeObserver(obs); shortcutObserver = nil }
-        if let obs = restoreShortcutObserver { NotificationCenter.default.removeObserver(obs); restoreShortcutObserver = nil }
+        if let obs = shortcutObserver {
+            NotificationCenter.default.removeObserver(obs); shortcutObserver = nil
+        }
+        if let obs = restoreShortcutObserver {
+            NotificationCenter.default.removeObserver(obs); restoreShortcutObserver = nil
+        }
+        if let obs = secondaryShortcutObserver {
+            NotificationCenter.default.removeObserver(obs); secondaryShortcutObserver = nil
+        }
         eventTap = nil
         runLoopSource = nil
         mouseMonitor = nil
@@ -1008,13 +1146,17 @@ struct ModifierChordTracker {
         }
         // `mods` is already masked to modifier bits, so popcount == modifier count
         // (allocation-free, unlike CGEventFlags.modifierCount).
-        if mods.rawValue.nonzeroBitCount > peak.rawValue.nonzeroBitCount { peak = mods }
+        if mods.rawValue.nonzeroBitCount > peak.rawValue.nonzeroBitCount {
+            peak = mods
+        }
         return nil
     }
 
     /// Note a non-modifier key press; invalidates the chord if modifiers are held.
     mutating func keyPressed(modifiersHeld mods: CGEventFlags) {
-        if !mods.isEmpty { invalidated = true }
+        if !mods.isEmpty {
+            invalidated = true
+        }
     }
 }
 
@@ -1026,11 +1168,13 @@ private let kModifierMask: CGEventFlags = [.maskSecondaryFn, .maskControl, .mask
 private var modifierChord = ModifierChordTracker()
 private var currentShortcut = KeyboardShortcut.load()
 private var currentRestoreShortcut = KeyboardShortcut.loadRestoreShortcut()
+private var currentSecondaryShortcut = KeyboardShortcut.activeSecondaryToggle() // nil when disabled
 private var isRecordingShortcut = false
 private var recordingModifiers: CGEventFlags = [] // Current modifiers being held
 private var peakRecordingModifiers: CGEventFlags = [] // Peak modifiers during recording
 private var shortcutObserver: NSObjectProtocol?
 private var restoreShortcutObserver: NSObjectProtocol?
+private var secondaryShortcutObserver: NSObjectProtocol?
 /// Skip word restore after mouse click (user may be selecting/deleting text)
 /// Reset to false after first keystroke
 private var skipWordRestoreAfterClick = false
@@ -1091,7 +1235,9 @@ private func getWordToRestoreOnBackspace() -> String? {
 
     // But we only want to restore when deleting THE LAST space before the word
     // If there are more spaces between cursor and word, don't restore yet
-    if wordEnd < cursorPos - 1 { return nil } // More than one space/punct between cursor and word
+    if wordEnd < cursorPos - 1 {
+        return nil
+    } // More than one space/punct between cursor and word
 
     // Find start of word
     var wordStart = wordEnd
@@ -1173,10 +1319,15 @@ func setupShortcutObserver() {
     restoreShortcutObserver = NotificationCenter.default.addObserver(forName: .restoreShortcutChanged, object: nil, queue: .main) { _ in
         currentRestoreShortcut = KeyboardShortcut.loadRestoreShortcut()
     }
+    secondaryShortcutObserver = NotificationCenter.default.addObserver(forName: .secondaryShortcutChanged, object: nil, queue: .main) { _ in
+        currentSecondaryShortcut = KeyboardShortcut.activeSecondaryToggle()
+    }
 }
 
+/// Either the primary or the (optional) secondary toggle shortcut fires the toggle.
 private func matchesToggleShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
     currentShortcut.matches(keyCode: keyCode, flags: flags)
+        || currentSecondaryShortcut?.matches(keyCode: keyCode, flags: flags) == true
 }
 
 private func matchesRestoreShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
@@ -1190,6 +1341,7 @@ private func matchesRestoreShortcut(keyCode: UInt16, flags: CGEventFlags) -> Boo
 
 private func matchesModifierOnlyShortcut(flags: CGEventFlags) -> Bool {
     currentShortcut.matchesModifierOnly(flags: flags)
+        || currentSecondaryShortcut?.matchesModifierOnly(flags: flags) == true
 }
 
 /// Trigger restore shortcut - restore raw ASCII and clear buffer
@@ -1211,7 +1363,9 @@ private func keyboardCallback(
 ) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         Log.info("tap disabled (type=\(type.rawValue)) → re-enabling")
-        if let tap = KeyboardHookManager.shared.getTap() { CGEvent.tapEnable(tap: tap, enable: true) }
+        if let tap = KeyboardHookManager.shared.getTap() {
+            CGEvent.tapEnable(tap: tap, enable: true)
+        }
         return Unmanaged.passUnretained(event)
     }
 
@@ -1372,7 +1526,9 @@ private func keyboardCallback(
 
             if bs > 0 || !chars.isEmpty {
                 // Shortcut: consumed, don't post. Auto-restore: post Enter after replacement
-                if !keyConsumed { TextInjector.shared.postBreakKey(keyCode: keyCode, shift: shift) }
+                if !keyConsumed {
+                    TextInjector.shared.postBreakKey(keyCode: keyCode, shift: shift)
+                }
                 return nil
             }
         }
@@ -1507,8 +1663,11 @@ private func keyboardCallback(
         let isBreak = isBreakKey(keyCode, shift: shift) && keyCode != KeyCode.space && !keyConsumed
         if isBreak {
             // Auto-restore: post break key after replacement for correct ordering
-            if bs > 0, !chars.isEmpty { TextInjector.shared.postBreakKey(keyCode: keyCode, shift: shift) }
-            else { return Unmanaged.passUnretained(event) }
+            if bs > 0, !chars.isEmpty {
+                TextInjector.shared.postBreakKey(keyCode: keyCode, shift: shift)
+            } else {
+                return Unmanaged.passUnretained(event)
+            }
         }
         return nil
     }
@@ -1633,7 +1792,9 @@ private func isDiscordFocusedContext() -> Bool {
 
 private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
     // Fast path: return cached result if valid
-    if let cached = DetectionCache.get() { return cached }
+    if let cached = DetectionCache.get() {
+        return cached
+    }
 
     // Slow path: query AX for focused element
     let systemWide = axSystemWideBounded()
@@ -1665,7 +1826,9 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
     }
     if Log.isEnabled {
         let axMs = (CFAbsoluteTimeGetCurrent() - axStart) * 1000
-        if axMs > 30 { Log.info("AX detect slow: \(Int(axMs))ms app=\(bundleId ?? "nil")") }
+        if axMs > 30 {
+            Log.info("AX detect slow: \(Int(axMs))ms app=\(bundleId ?? "nil")")
+        }
     }
 
     // Fallback to frontmost app if we couldn't get bundle from focused element
@@ -1725,8 +1888,12 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
     }
 
     // Selection method for autocomplete UI elements
-    if role == "AXComboBox" { return cached(.selection, (0, 0, 0), "sel:combo") }
-    if role == "AXSearchField" { return cached(.selection, (0, 0, 0), "sel:search") }
+    if role == "AXComboBox" {
+        return cached(.selection, (0, 0, 0), "sel:combo")
+    }
+    if role == "AXSearchField" {
+        return cached(.selection, (0, 0, 0), "sel:search")
+    }
 
     // Spotlight - use AX API direct manipulation (macOS 13+)
     if bundleId == "com.apple.Spotlight" || bundleId == "com.apple.systemuiserver" {
@@ -1736,7 +1903,9 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
     // Safari: address bar uses emptyCharPrefix, content areas (Google Docs) use charByChar
     // Must be checked BEFORE general browsers array since Safari needs special content handling
     if bundleId == "com.apple.Safari" || bundleId == "com.apple.SafariTechnologyPreview" {
-        if role == "AXTextField" { return cached(.emptyCharPrefix, (3000, 8000, 3000), "emptyChar:safari") }
+        if role == "AXTextField" {
+            return cached(.emptyCharPrefix, (3000, 8000, 3000), "emptyChar:safari")
+        }
         return cached(.charByChar, (3000, 8000, 3000), "char:safari")
     }
 
@@ -1764,6 +1933,7 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
         "com.vivaldi.Vivaldi", // Vivaldi
         "com.vivaldi.Vivaldi.snapshot", // Vivaldi Snapshot
         "ru.yandex.desktop.yandex-browser", // Yandex Browser
+        "net.imput.helium", // Helium
         // Opera
         "com.opera.Opera", // Opera
         "com.operasoftware.Opera", // Opera (alt)
@@ -1782,17 +1952,31 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
     ]
     // All browser contexts use emptyCharPrefix to break autocomplete/suggestion highlights
     // Medium delays (3ms/8ms/3ms) to handle web apps with popup interception (e.g. Telegram Web)
-    if browsers.contains(bundleId) { return cached(.emptyCharPrefix, (3000, 8000, 3000), "emptyChar:browser") }
-    if role == "AXTextField", bundleId.hasPrefix("com.jetbrains") { return cached(.selection, (0, 0, 0), "sel:jb") }
+    if browsers.contains(bundleId) {
+        return cached(.emptyCharPrefix, (3000, 8000, 3000), "emptyChar:browser")
+    }
+    if role == "AXTextField", bundleId.hasPrefix("com.jetbrains") {
+        return cached(.selection, (0, 0, 0), "sel:jb")
+    }
 
     // Microsoft Office apps - backspace method (selection conflicts with autocomplete)
-    if bundleId == "com.microsoft.Excel" { return cached(.slow, (3000, 8000, 3000), "slow:excel") }
-    if bundleId == "com.microsoft.Word" { return cached(.slow, (3000, 8000, 3000), "slow:word") }
-    if bundleId == "com.microsoft.Outlook" { return cached(.slow, (8000, 15000, 8000), "slow:outlook") }
+    if bundleId == "com.microsoft.Excel" {
+        return cached(.slow, (3000, 8000, 3000), "slow:excel")
+    }
+    if bundleId == "com.microsoft.Word" {
+        return cached(.slow, (3000, 8000, 3000), "slow:word")
+    }
+    if bundleId == "com.microsoft.Outlook" {
+        return cached(.slow, (8000, 15000, 8000), "slow:outlook")
+    }
 
     // Electron apps - higher delays for Monaco editor
-    if bundleId == "com.todesktop.230313mzl4w4u92" { return cached(.slow, (8000, 15000, 8000), "slow:claude") }
-    if bundleId == "notion.id" { return cached(.slow, (12000, 25000, 12000), "slow:notion") }
+    if bundleId == "com.todesktop.230313mzl4w4u92" {
+        return cached(.slow, (8000, 15000, 8000), "slow:claude")
+    }
+    if bundleId == "notion.id" {
+        return cached(.slow, (12000, 25000, 12000), "slow:notion")
+    }
 
     // Code editors & terminals - higher delays for Monaco/Electron-based apps
     // Includes: VSCode-based (VSCode, Cursor, Antigravity), terminals (Warp, Ghostty, Kitty, etc.)
@@ -1808,20 +1992,38 @@ private func detectMethod() -> (InjectionMethod, (UInt32, UInt32, UInt32)) {
         // Other code editors
         "dev.zed.Zed", "com.sublimetext.4", "com.sublimetext.3", "com.panic.Nova",
     ]
-    if codeApps.contains(bundleId) { return cached(.slow, (8000, 25000, 8000), "slow:code") }
+    if codeApps.contains(bundleId) {
+        return cached(.slow, (8000, 25000, 8000), "slow:code")
+    }
 
     // LaTeX editors (Qt-based) - need charByChar for reliable Unicode input
-    if bundleId == "texstudio" { return cached(.charByChar, (3000, 8000, 3000), "char:texstudio") }
-    if bundleId.hasPrefix("com.jetbrains") { return cached(.slow, (8000, 25000, 8000), "slow:jb") }
+    if bundleId == "texstudio" {
+        return cached(.charByChar, (3000, 8000, 3000), "char:texstudio")
+    }
+    if bundleId.hasPrefix("com.jetbrains") {
+        return cached(.slow, (8000, 25000, 8000), "slow:jb")
+    }
 
     // Caudex - char-by-char with higher delays for reliable text replacement
-    if bundleId == "com.caudex.dev" { return cached(.charByChar, (5000, 15000, 5000), "char:caudex") }
+    if bundleId == "com.caudex.dev" {
+        return cached(.charByChar, (5000, 15000, 5000), "char:caudex")
+    }
 
     // Foxit PDF Reader - char-by-char for reliable Vietnamese input in form fields
-    if bundleId == "com.foxit-software.Foxit.PDF.Reader" { return cached(.charByChar, (0, 0, 0), "char:foxit") }
+    if bundleId == "com.foxit-software.Foxit.PDF.Reader" {
+        return cached(.charByChar, (0, 0, 0), "char:foxit")
+    }
+
+    // Adobe apps (Illustrator, InDesign, Photoshop, ...) use a custom text engine that only
+    // reads the first character of a multi-character key event, so chunked text is truncated.
+    if bundleId.hasPrefix("com.adobe.") {
+        return cached(.charByChar, (3000, 8000, 3000), "char:adobe")
+    }
 
     // Games - synchronous proxy injection (Issue #264: Vietnamese typing in LOL)
-    if bundleId.hasPrefix("com.riotgames") { return cached(.syncProxy, (0, 0, 0), "sync:game") }
+    if bundleId.hasPrefix("com.riotgames") {
+        return cached(.syncProxy, (0, 0, 0), "sync:game")
+    }
 
     // Default: safe delays
     return cached(.fast, (1000, 3000, 1500), "default")
@@ -2072,10 +2274,18 @@ class PerAppModeManager {
         Log.info("AX: spotlight sync")
         SpecialPanelAppDetector.updateLastFrontMostApp(bundleId)
         SpecialPanelAppDetector.invalidateCache()
-        handleAppSwitch(bundleId)
+        // This fallback runs inside the event-tap callback. Keep the synchronous
+        // Secure Input query off that latency-sensitive path.
+        DispatchQueue.main.async {
+            KeyboardHookManager.shared.refreshSecureInputState()
+        }
+        handleAppSwitch(bundleId, refreshSecureInput: false)
     }
 
-    private func handleAppSwitch(_ bundleId: String) {
+    private func handleAppSwitch(_ bundleId: String, refreshSecureInput: Bool = true) {
+        if refreshSecureInput {
+            KeyboardHookManager.shared.refreshSecureInputState()
+        }
         guard bundleId != currentBundleId else { return }
         Log.info("App: \(currentBundleId ?? "nil") → \(bundleId)")
 
@@ -2113,7 +2323,10 @@ class PerAppModeManager {
         // Skip if per-app profile has disabled GN — applyPerAppProfile handles it
         if AppState.shared.advancedMode,
            let profile = AppState.shared.perAppProfiles[bundleId],
-           profile.enabledState == -1 { return }
+           profile.enabledState == -1
+        {
+            return
+        }
         guard AppState.shared.perAppModeEnabled,
               AppState.shared.hasPerAppMode(bundleId: bundleId) else { return }
 
@@ -2131,6 +2344,7 @@ extension Notification.Name {
     static let toggleVietnamese = Notification.Name("toggleVietnamese")
     static let shortcutChanged = Notification.Name("shortcutChanged")
     static let restoreShortcutChanged = Notification.Name("restoreShortcutChanged")
+    static let secondaryShortcutChanged = Notification.Name("secondaryShortcutChanged")
     static let shortcutRecorded = Notification.Name("shortcutRecorded")
     static let shortcutRecordingCancelled = Notification.Name("shortcutRecordingCancelled")
 }
