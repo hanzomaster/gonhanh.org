@@ -64,7 +64,8 @@ jobs:
             CODE_SIGN_IDENTITY="-"
 
           APP="build/Build/Products/Release/GoNhanh.app"
-          GIT_TAG="$(git describe --tags --abbrev=0 --match 'v*')"
+          GIT_TAG="$(git tag --merged HEAD --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '1p')"
+          test -n "$GIT_TAG"
           VERSION="${GIT_TAG#v}-custom"
           /usr/libexec/PlistBuddy \
             -c "Set :CFBundleShortVersionString $VERSION" \
