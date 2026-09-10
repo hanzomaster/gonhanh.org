@@ -15,96 +15,72 @@ Mỗi đóng góp, dù lớn hay nhỏ, đều giúp người Việt gõ tiếng
 Những người đã tin tưởng và ủng hộ dự án.
 
 
-### 🥇 Gold
 
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/blueberry6401">
-        <img src="https://avatars.githubusercontent.com/u/7337535?u=465b15011bab7c2bb58c6a5b96be55fee8f9c858&v=4" width="100" style="border-radius:50%"/><br/>
-        <b>blueberry6401</b> 🥇
-      </a>
-    </td>
-  </tr>
-</table>
-
-### 🥈 Silver
-
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/nguyenvulong">
-        <img src="https://avatars.githubusercontent.com/u/1311412?u=d7ef0aeb8eab8d998343125a273e6460c5210425&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>nguyenvulong</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/nguyencaokyvn">
-        <img src="https://avatars.githubusercontent.com/u/2754877?u=b4cf2da20034865ba9deda9458024215f0d7b39f&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>nguyencaokyvn</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/kientux">
-        <img src="https://avatars.githubusercontent.com/u/4200743?u=4e4c760b1f38afdd87a07335bf72eb0cd5191bf5&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>kientux</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/tuandev-nv">
-        <img src="https://avatars.githubusercontent.com/u/6220969?u=48487fe420e765906abfdfe681c12c0793594dd9&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>tuandev-nv</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/nguyenphusi">
-        <img src="https://avatars.githubusercontent.com/u/8143167?u=848b8f718b731d5bb73a7b9895f8d8273f99b463&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>nguyenphusi</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/trinhquocviet">
-        <img src="https://avatars.githubusercontent.com/u/9828732?u=9edcf61af5c991ee27cb6ec964726c1c8528f76e&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>trinhquocviet</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/thehotbotcannotdiefromlove">
-        <img src="https://avatars.githubusercontent.com/u/19403100?u=760bd6b0152bdf6d7632d125dbb8a37cbb8ba8c6&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>thehotbotcannotdiefromlove</b> 🥈
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/vienkmt">
-        <img src="https://avatars.githubusercontent.com/u/20434534?u=12a0117494ef54992f329b8a943036622d5c0f17&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>vienkmt</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/khang-nd">
-        <img src="https://avatars.githubusercontent.com/u/55619201?u=e5c1232f7ec6a67e088ea01bc1a91b8a8116bf5b&v=4" width="80" style="border-radius:50%"/><br/>
-        <b>khang-nd</b> 🥈
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/dathc0601">
-        <img src="https://avatars.githubusercontent.com/u/71875585?v=4" width="80" style="border-radius:50%"/><br/>
-        <b>dathc0601</b> 🥈
-      </a>
-    </td>
-  </tr>
-</table>
 
 ### 💜 Backers
 
 <table>
   <tr>
     <td align="center">
+      <a href="https://github.com/nguyenvulong">
+        <img src="https://avatars.githubusercontent.com/u/1311412?u=d7ef0aeb8eab8d998343125a273e6460c5210425&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>nguyenvulong</b> 💜
+      </a>
+    </td>
+    <td align="center">
       <a href="https://github.com/ducfilan">
         <img src="https://avatars.githubusercontent.com/u/1677524?u=b6af07b085067d01331688a03b6822c4761cd59f&v=4" width="50" style="border-radius:50%"/><br/>
         <b>ducfilan</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/nguyencaokyvn">
+        <img src="https://avatars.githubusercontent.com/u/2754877?u=b4cf2da20034865ba9deda9458024215f0d7b39f&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>nguyencaokyvn</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/kientux">
+        <img src="https://avatars.githubusercontent.com/u/4200743?u=4e4c760b1f38afdd87a07335bf72eb0cd5191bf5&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>kientux</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/tuandev-nv">
+        <img src="https://avatars.githubusercontent.com/u/6220969?u=48487fe420e765906abfdfe681c12c0793594dd9&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>tuandev-nv</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/blueberry6401">
+        <img src="https://avatars.githubusercontent.com/u/7337535?u=465b15011bab7c2bb58c6a5b96be55fee8f9c858&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>blueberry6401</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/nguyenphusi">
+        <img src="https://avatars.githubusercontent.com/u/8143167?u=848b8f718b731d5bb73a7b9895f8d8273f99b463&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>nguyenphusi</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/trinhquocviet">
+        <img src="https://avatars.githubusercontent.com/u/9828732?u=9edcf61af5c991ee27cb6ec964726c1c8528f76e&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>trinhquocviet</b> 💜
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/thehotbotcannotdiefromlove">
+        <img src="https://avatars.githubusercontent.com/u/19403100?u=760bd6b0152bdf6d7632d125dbb8a37cbb8ba8c6&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>thehotbotcannotdiefromlove</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/vienkmt">
+        <img src="https://avatars.githubusercontent.com/u/20434534?u=12a0117494ef54992f329b8a943036622d5c0f17&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>vienkmt</b> 💜
       </a>
     </td>
     <td align="center">
@@ -120,6 +96,18 @@ Những người đã tin tưởng và ủng hộ dự án.
       </a>
     </td>
     <td align="center">
+      <a href="https://github.com/khang-nd">
+        <img src="https://avatars.githubusercontent.com/u/55619201?u=e5c1232f7ec6a67e088ea01bc1a91b8a8116bf5b&v=4" width="50" style="border-radius:50%"/><br/>
+        <b>khang-nd</b> 💜
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/dathc0601">
+        <img src="https://avatars.githubusercontent.com/u/71875585?v=4" width="50" style="border-radius:50%"/><br/>
+        <b>dathc0601</b> 💜
+      </a>
+    </td>
+    <td align="center">
       <a href="https://github.com/hothanhly">
         <img src="https://avatars.githubusercontent.com/u/82742923?v=4" width="50" style="border-radius:50%"/><br/>
         <b>hothanhly</b> 💜
@@ -131,6 +119,8 @@ Những người đã tin tưởng và ủng hộ dự án.
         <b>DieuNN</b> 💜
       </a>
     </td>
+  </tr>
+  <tr>
     <td align="center">
       <a href="https://github.com/ngthminhdev">
         <img src="https://avatars.githubusercontent.com/u/95201788?u=3168c88c7931dd81ee002d6e7c801b489a480b1a&v=4" width="50" style="border-radius:50%"/><br/>
@@ -159,18 +149,24 @@ Những người đã đóng góp code, biến ý tưởng thành hiện thực.
       <a href="https://github.com/khaphanspace">
         <img src="https://avatars.githubusercontent.com/u/16458012?v=4" width="80" style="border-radius:50%"/><br/>
         <b>khaphanspace</b>
-      </a><br/><sub>1125 commits</sub>
+      </a><br/><sub>1126 commits</sub>
     </td>
     <td align="center">
       <a href="https://github.com/tuananhht94">
         <img src="https://avatars.githubusercontent.com/u/4498336?v=4" width="80" style="border-radius:50%"/><br/>
         <b>tuananhht94</b>
-      </a><br/><sub>75 commits</sub>
+      </a><br/><sub>76 commits</sub>
     </td>
     <td align="center">
       <a href="https://github.com/brotherbui">
         <img src="https://avatars.githubusercontent.com/u/80878082?v=4" width="80" style="border-radius:50%"/><br/>
         <b>brotherbui</b>
+      </a><br/><sub>1 commits</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/OctoBored">
+        <img src="https://avatars.githubusercontent.com/u/212877535?v=4" width="80" style="border-radius:50%"/><br/>
+        <b>OctoBored</b>
       </a><br/><sub>1 commits</sub>
     </td>
     <td align="center">
@@ -191,6 +187,8 @@ Những người đã đóng góp code, biến ý tưởng thành hiện thực.
         <b>blueberry6401</b>
       </a><br/><sub>1 commits</sub>
     </td>
+  </tr>
+  <tr>
     <td align="center">
       <a href="https://github.com/oornasp">
         <img src="https://avatars.githubusercontent.com/u/16114639?v=4" width="80" style="border-radius:50%"/><br/>
@@ -1292,7 +1290,7 @@ Những người đã báo lỗi, góp ý, và thảo luận giúp định hình
     </td>
     <td align="center">
       <a href="https://github.com/3ky4r0">
-        <img src="https://avatars.githubusercontent.com/u/217141310?u=d4228fae167ef49b81166ce6fb3fc8cc3b9c6c81&v=4" width="50" style="border-radius:50%"/><br/>
+        <img src="https://avatars.githubusercontent.com/u/217141310?v=4" width="50" style="border-radius:50%"/><br/>
         <b>3ky4r0</b>
       </a>
     </td>
@@ -1331,6 +1329,6 @@ Những người đã báo lỗi, góp ý, và thảo luận giúp định hình
 
 ---
 
-*Được cập nhật tự động · Lần cuối: 27/08/2026*
+*Được cập nhật tự động · Lần cuối: 10/09/2026*
 
 </div>
