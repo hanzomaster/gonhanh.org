@@ -148,6 +148,9 @@ class MenuBarController: NSObject, NSWindowDelegate {
 
     private var statusSubtitle: String {
         if appState.shouldShowSecureInputWarning {
+            if let holder = appState.secureInputHolderName {
+                return "Tạm dừng · Secure Input (\(holder))"
+            }
             return "Tạm dừng · Secure Input"
         }
         let mode = appState.isEnabled ? appState.currentMethod.name : "Đã tắt"
@@ -206,6 +209,7 @@ class MenuBarController: NSObject, NSWindowDelegate {
            let subtitle = headerView.viewWithTag(100) as? NSTextField
         {
             subtitle.stringValue = statusSubtitle
+            headerView.frame.size.width = headerView.fittingSize.width
         }
 
         menu.item(withTag: 10)?.state = appState.currentMethod == .telex ? .on : .off
@@ -303,7 +307,7 @@ class MenuBarController: NSObject, NSWindowDelegate {
                 button.image = createStatusIcon(text: text)
             }
             button.toolTip = isSecureInputBlocked
-                ? "Gõ Nhanh đang tạm dừng vì macOS Secure Input"
+                ? SecureInputPresentation.tooltip(holderName: appState.secureInputHolderName)
                 : nil
         }
     }
