@@ -430,6 +430,7 @@ jobs:
 
       - name: Smoke test packaged installer
         run: |
+          unset XDG_CONFIG_HOME
           TMP_DIR=$(mktemp -d)
           trap 'rm -rf "$TMP_DIR"' EXIT
           tar -xzf gonhanh-linux.tar.gz -C "$TMP_DIR"
