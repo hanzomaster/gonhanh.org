@@ -15,9 +15,11 @@ Keep these changes when syncing with the author. The customization starts at com
 
 ## Automated upstream updates
 
-`.github/workflows/upstream-update-pr.yml` checks `upstream/main` daily at 06:17 UTC. When it finds a new stable release tag, it merges that release into the bot-owned `automation/upstream-sync` branch, runs the shortcut tests, builds the universal custom macOS app, and opens a pull request against `custom/shortcut-scope` only after the build succeeds. If the merge conflicts, the workflow fails and lists the conflicting files for manual resolution.
+`.github/workflows/upstream-update-pr.yml` checks `upstream/main` daily at 06:17 UTC. When it finds a new stable release tag, it merges that release into a bot-owned `automation/upstream-sync-vX.Y.Z` branch, runs the shortcut tests, builds the universal custom macOS app, and opens a pull request against `custom/shortcut-scope` only after the build succeeds. If the merge conflicts, the workflow fails and lists the conflicting files for manual resolution.
 
 Review and merge that pull request to accept the update. `.github/workflows/mirror-custom-main.yml` then fast-forwards `main` to the updated custom branch. The workflow artifact is retained for 14 days and can be tested before merging.
+
+Automated source updates preserve the `.github/workflows/` tree from the commit running the updater. Each release uses a separate branch without force-pushing the older update branch. Review upstream workflow changes separately; the updater uses `GITHUB_TOKEN`, which cannot push changes to workflow files.
 
 The updater can also be checked immediately with:
 

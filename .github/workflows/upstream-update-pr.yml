@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          BRANCH="automation/upstream-sync"
+          WORKFLOW_SHA="${{ github.sha }}"
           BOT_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
           UPSTREAM_URL="https://github.com/khaphanspace/gonhanh.org.git"
           RELEASE_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
@@ -53,6 +53,7 @@ jobs:
             exit 1
           fi
 
+          BRANCH="automation/upstream-sync-$VERSION"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -70,7 +71,7 @@ jobs:
           fi
 
           git switch -C "$BRANCH"
-          if ! git merge --no-edit "$VERSION"; then
+          if ! git merge --no-commit --no-ff "$VERSION"; then
             CONFLICTS="$(git diff --name-only --diff-filter=U)"
             echo "::error title=Upstream merge conflict::$VERSION"
             echo "Conflicting files:"
@@ -79,7 +80,12 @@ jobs:
             exit 1
           fi
 
-          git push --force-with-lease \
+          # Fork workflows are maintained separately from upstream source updates.
+          # GITHUB_TOKEN cannot push changes to workflow files.
+          git restore --source="$WORKFLOW_SHA" --staged --worktree -- .github/workflows
+          git commit --no-edit
+
+          git push \
             origin "HEAD:refs/heads/$BRANCH"
           echo "updated=true" >> "$GITHUB_OUTPUT"
 
@@ -128,6 +134,8 @@ jobs:
 
           BODY="$(cat <<EOF
           Merges upstream $UPSTREAM_VERSION into the custom branch.
+
+          Fork workflows are preserved. Review upstream workflow changes separately.
 
           The shortcut-scope tests and custom universal macOS build passed.
           Download \`GoNhanh-custom-macOS\` from the [workflow run]($RUN_URL)

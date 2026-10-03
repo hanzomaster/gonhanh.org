@@ -15,7 +15,8 @@ jobs:
   mirror:
     if: >-
       github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref == 'automation/upstream-sync'
+      (github.event.pull_request.head.ref == 'automation/upstream-sync' ||
+       startsWith(github.event.pull_request.head.ref, 'automation/upstream-sync-v'))
     permissions:
       contents: write
     runs-on: ubuntu-latest
