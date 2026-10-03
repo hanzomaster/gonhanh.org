@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Keep installer writes inside each fixture HOME (CI runners export XDG_CONFIG_HOME).
+unset XDG_CONFIG_HOME
+
 LINUX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
@@ -19,7 +22,13 @@ make_fixture() {
 
 assert_once() {
     local pattern="$1" file="$2"
-    [[ "$(awk -v pattern="$pattern" '$0 == pattern { count++ } END { print count + 0 }' "$file")" == "1" ]]
+    local count
+    count="$(awk -v pattern="$pattern" '$0 == pattern { count++ } END { print count + 0 }' "$file")"
+    if [[ "$count" != "1" ]]; then
+        printf 'Expected exactly one %q in %s, found %s:\n' "$pattern" "$file" "$count" >&2
+        sed -n '1,160p' "$file" >&2
+        return 1
+    fi
 }
 
 PACKAGE="$TEST_ROOT/gonhanh-linux"
