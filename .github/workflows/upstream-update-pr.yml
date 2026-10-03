@@ -72,7 +72,17 @@ jobs:
 
           git switch -C "$BRANCH"
           if ! git merge --no-commit --no-ff "$VERSION"; then
-            CONFLICTS="$(git diff --name-only --diff-filter=U)"
+            # Only resolve conflicts after Git has actually started a merge.
+            git rev-parse --verify --quiet MERGE_HEAD >/dev/null || exit 1
+          fi
+
+          # Keep fork CI and the independently generated contributor snapshot.
+          # GITHUB_TOKEN cannot push changes to workflow files.
+          git restore --source="$WORKFLOW_SHA" --staged --worktree -- \
+            .github/workflows CONTRIBUTORS.md
+
+          CONFLICTS="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$CONFLICTS" ]; then
             echo "::error title=Upstream merge conflict::$VERSION"
             echo "Conflicting files:"
             echo "$CONFLICTS"
@@ -80,9 +90,6 @@ jobs:
             exit 1
           fi
 
-          # Fork workflows are maintained separately from upstream source updates.
-          # GITHUB_TOKEN cannot push changes to workflow files.
-          git restore --source="$WORKFLOW_SHA" --staged --worktree -- .github/workflows
           git commit --no-edit
 
           git push \
@@ -135,7 +142,8 @@ jobs:
           BODY="$(cat <<EOF
           Merges upstream $UPSTREAM_VERSION into the custom branch.
 
-          Fork workflows are preserved. Review upstream workflow changes separately.
+          Fork workflows and the generated contributor snapshot are preserved.
+          Review upstream workflow changes separately.
 
           The shortcut-scope tests and custom universal macOS build passed.
           Download \`GoNhanh-custom-macOS\` from the [workflow run]($RUN_URL)

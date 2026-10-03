@@ -19,7 +19,7 @@ Keep these changes when syncing with the author. The customization starts at com
 
 Review and merge that pull request to accept the update. `.github/workflows/mirror-custom-main.yml` then fast-forwards `main` to the updated custom branch. The workflow artifact is retained for 14 days and can be tested before merging.
 
-Automated source updates preserve the `.github/workflows/` tree from the commit running the updater. Each release uses a separate branch without force-pushing the older update branch. Review upstream workflow changes separately; the updater uses `GITHUB_TOKEN`, which cannot push changes to workflow files.
+Automated source updates preserve the `.github/workflows/` tree and generated `CONTRIBUTORS.md` snapshot from the commit running the updater. The contributor workflow regenerates its snapshot independently. Each release uses a separate branch without force-pushing the older update branch. Review upstream workflow changes separately; the updater uses `GITHUB_TOKEN`, which cannot push changes to workflow files. Conflicts outside the preserved files still require manual resolution.
 
 The updater can also be checked immediately with:
 
